@@ -1,5 +1,7 @@
 #include "TemperaturePreferences.h"
 
+Preferences preferences;
+
 TemperaturePreferences::TemperaturePreferences(const char* folder){
     this->folder = folder;
 }

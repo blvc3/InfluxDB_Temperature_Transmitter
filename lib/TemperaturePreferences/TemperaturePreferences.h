@@ -13,8 +13,6 @@
 #define PERF_KEY_INFLUX_BUCKET "buck"
 #define PERF_KEY_FAIL "fail"
 
-Preferences preferences;
-
 class TemperaturePreferences
 {
 public:
