@@ -85,7 +85,7 @@ void scanWiFi()
  */
 String getHTMLString(bool addWifi, bool addInflux)
 {
-    String html = "<!DOCTYPE HTML><html><head><title>Temperature Sensor</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body>";
+    String html = "<!DOCTYPE HTML><html><head><title>Temperature Sensor</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><form action=\"/input\">";
     if (addWifi)
     {
         scanWiFi();
@@ -94,7 +94,7 @@ String getHTMLString(bool addWifi, bool addInflux)
         {
             html += String(i) + ") " + wifiScanSSIDs[i] + "<br>";
         }
-        html += "<form action=\"/input\">SSID <input type=\"number\" name=\"ssid\" min = 0 max = ";
+        html += "SSID <input type=\"number\" name=\"ssid\" min = 0 max = ";
         html += String(sizeof(wifiScanSSIDs));
         html += "><br>Password <input type=\"text\" name=\"passwd\"><br>";
     }
@@ -183,16 +183,15 @@ bool hasWifi()
     return result;
 }
 
-void configureTemperatureSensor()
+void configureTemperatureSensor(int errorcode)
 {
     Serial.println("No configuration found");
     Serial.println("Starting configuration mode");
 
     // Scan Wifi
     String webseiteStringHTML;
-    int failLastTime = settings.getLastErrorCode();
 
-    switch (failLastTime)
+    switch (errorcode)
     {
     case FAIL_MESSAGE_WIFI_CONNECT:
         Serial.println("Failed last Time: WIFI");
@@ -362,9 +361,12 @@ void setup()
     digitalWrite(LED_BUILTIN, LOW);
 
     // Wifi Web Server no configuration
+    int failLastTimeErrorCode = settings.getLastErrorCode();
+    settings.setErrorCode(-1);
+
     if (!hasConfiguration)
     {
-        configureTemperatureSensor();
+        configureTemperatureSensor(failLastTimeErrorCode);
     }
     else
     {
