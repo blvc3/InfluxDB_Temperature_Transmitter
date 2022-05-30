@@ -22,9 +22,6 @@ const char *ssidLocal = WIFI_LOCAL_SSID;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature tempSensor(&oneWire);
 
-// Configuration
-bool hasConfiguration = false;
-
 // Wifi Connect
 const char *ssidHomeNetwork;
 const char *passwdHomeNetwork;
@@ -37,10 +34,7 @@ const char *influxdbToken;
 const char *influxdbOrganisation;
 const char *influxdbBucket;
 
-//InfluxDB Client
-InfluxDBClient client(influxdbUrl, influxdbOrganisation, influxdbBucket, influxdbToken, InfluxDbCloud2CACert);
-
-//Preferences
+// Preferences
 TemperaturePreferences settings("pref");
 
 // Datapoints
@@ -145,6 +139,8 @@ float getTemperature(int cycels)
  */
 void sendTemp(int *temp)
 {
+    // InfluxDB Client
+    InfluxDBClient client(influxdbUrl, influxdbOrganisation, influxdbBucket, influxdbToken, InfluxDbCloud2CACert);
     sensor.clearFields();
     sensor.addField("rssi", WiFi.RSSI());
     sensor.addField("temperature", temp);
@@ -241,7 +237,7 @@ void configureTemperatureSensor(int errorcode)
             settings.writeWiFiConfiguration(ssid, passwd);
             settings.writeInfluxDBConfiguration(influxUrl, influxToken, influxOrganisation, influxBucket);
 
-            settings.preferencesSetConfiguration(true);
+            settings.setConfiguration(true);
 
             server.send(200, "text/html", "Configuration done");
             ESP.restart(); });
@@ -275,8 +271,8 @@ void startTemperatureSensor()
     if (prefSSID == "No SSID" || prefPasswd == "No Password")
     {
         Serial.println("No SSID found");
-        settings.preferencesSetFail(FAIL_MESSAGE_WIFI_CONNECT);
-        settings.preferencesSetConfiguration(false);
+        settings.setErrorCode(FAIL_MESSAGE_WIFI_CONNECT);
+        settings.setConfiguration(false);
         ESP.restart();
     }
     else
@@ -288,8 +284,8 @@ void startTemperatureSensor()
     if (perfInfluxUrl == "No URL" || perfInfluxPort == "No Port" || perfInfluxToken == "No Token" || perfInfluxOrganisation == "No Organisation" || perfInfluxBucket == "No Bucket")
     {
         Serial.println("No InfluxDB found");
-        settings.preferencesSetFail(INFLUX_PARAMETER_ERROR);
-        settings.preferencesSetConfiguration(false);
+        settings.setErrorCode(INFLUX_PARAMETER_ERROR);
+        settings.setConfiguration(false);
         ESP.restart();
     }
     else
@@ -303,10 +299,11 @@ void startTemperatureSensor()
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssidHomeNetwork, passwdHomeNetwork);
     Serial.println("\nConnecting");
-    if(!hasWifi()){
+    if (!hasWifi())
+    {
         Serial.println("Wifi connection lost");
-        settings.preferencesSetFail(FAIL_MESSAGE_WIFI_CONNECT);
-        settings.preferencesSetConfiguration(false);
+        settings.setErrorCode(FAIL_MESSAGE_WIFI_CONNECT);
+        settings.setConfiguration(false);
         ESP.restart();
     }
     else
@@ -321,6 +318,9 @@ void startTemperatureSensor()
 
     timeSync(TZ_INFO, "pool.ntp.org", "time.nis.gov");
 
+    // InfluxDB Client
+    InfluxDBClient client(influxdbUrl, influxdbOrganisation, influxdbBucket, influxdbToken, InfluxDbCloud2CACert);
+
     if (client.validateConnection())
     {
         Serial.print("Connected to InfluxDB: ");
@@ -334,8 +334,8 @@ void startTemperatureSensor()
 
         if (cause.equals("Invalid parameters"))
         {
-            settings.preferencesSetFail(INFLUX_PARAMETER_ERROR);
-            settings.preferencesSetConfiguration(false);
+            settings.setErrorCode(INFLUX_PARAMETER_ERROR);
+            settings.setConfiguration(false);
             ESP.restart();
         }
         else
@@ -354,24 +354,26 @@ void setup()
     delay(1);
     Serial.println("Starting");
 
-    bool hasConfiguration = settings.hasConfiguration();
-
-    // LED
+    // Pins
     pinMode(LED_BUILTIN, OUTPUT);
     digitalWrite(LED_BUILTIN, LOW);
+    pinMode(RESET_BUTTON_PIN, INPUT);
+
+    if (digitalRead(RESET_BUTTON_PIN) == HIGH)
+    {
+        Serial.println("Reset button pressed");
+        settings.setConfiguration(false);
+        ESP.restart();
+    }
 
     // Wifi Web Server no configuration
     int failLastTimeErrorCode = settings.getLastErrorCode();
     settings.setErrorCode(-1);
 
-    if (!hasConfiguration)
-    {
-        configureTemperatureSensor(failLastTimeErrorCode);
-    }
-    else
-    {
-        startTemperatureSensor();
-    }
+    if (settings.hasConfiguration()) startTemperatureSensor();
+    else configureTemperatureSensor(failLastTimeErrorCode);
+    
+    Serial.println("Setup done");
 }
 
 /**
@@ -379,11 +381,9 @@ void setup()
  */
 void loop()
 {
-    if (!hasConfiguration)
-        server.handleClient();
-    else
+    if (settings.hasConfiguration())
     {
         int temp = getTemperature(10);
         sendTemp(&temp);
-    }
+    } else server.handleClient();
 }

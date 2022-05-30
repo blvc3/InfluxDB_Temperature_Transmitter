@@ -4,6 +4,7 @@ Preferences preferences;
 
 TemperaturePreferences::TemperaturePreferences(const char* folder){
     this->folder = folder;
+    this->hasConfigurationStatus = false;
 }
 
 /**
@@ -43,11 +44,12 @@ void TemperaturePreferences::writeInfluxDBConfiguration(String influxUrl, String
  *
  * @param hasConfiguration the Configuration Mode
  */
-void TemperaturePreferences::preferencesSetConfiguration(bool hasConfiguration)
+void TemperaturePreferences::setConfiguration(bool hasConfiguration)
 {
     preferences.begin(folder, false);
     preferences.putBool(PERF_KEY_HAS_CONFIGURATION, hasConfiguration);
     preferences.end();
+    updateConfigurationStatus();
 }
 
 /**
@@ -55,7 +57,7 @@ void TemperaturePreferences::preferencesSetConfiguration(bool hasConfiguration)
  *
  * @param failCode the Fail Code
  */
-void TemperaturePreferences::preferencesSetFail(int failCode)
+void TemperaturePreferences::setErrorCode(int failCode)
 {
     preferences.begin(folder, false);
     preferences.putInt(PERF_KEY_FAIL, failCode);
@@ -94,6 +96,11 @@ void TemperaturePreferences::getWiFiParameter(String *ssid, String *passwd)
     preferences.end();
 }
 
+/**
+ * @brief Get the Last Error Code
+ *
+ * @return the Last Error Code
+ */
 int TemperaturePreferences::getLastErrorCode(){
     preferences.begin(folder, false);
     int errorCode = preferences.getInt(PERF_KEY_FAIL, -1);
@@ -101,27 +108,29 @@ int TemperaturePreferences::getLastErrorCode(){
     return errorCode;
 }
 
-void TemperaturePreferences::setErrorCode(int errorcode){
-    preferences.begin(folder, false);
-    preferences.putInt(PERF_KEY_FAIL, errorcode);
-    preferences.end();
-}
-
+/**
+ * @brief Check if the Configuration is set
+ *
+ * @return true if the Configuration is set
+ */
 bool TemperaturePreferences::hasConfiguration(){
-    preferences.begin(folder, false);
-    bool hasConfiguration = preferences.getBool(PERF_KEY_HAS_CONFIGURATION, false);
-    preferences.end();
-    return hasConfiguration;
+    return hasConfigurationStatus;
 }
 
+/**
+ * @brief Update the Configuration Status
+ */
 void TemperaturePreferences::clear(){
     preferences.begin(folder, false);
     preferences.clear();
     preferences.end();
 }
 
-void  TemperaturePreferences::setConfiguration(bool status){
+/**
+ * @brief Update the Configuration Status
+ */
+void TemperaturePreferences::updateConfigurationStatus(){
     preferences.begin(folder, false);
-    preferences.putBool(PERF_KEY_HAS_CONFIGURATION, status);
+    hasConfigurationStatus = preferences.getBool(PERF_KEY_HAS_CONFIGURATION, false);
     preferences.end();
 }

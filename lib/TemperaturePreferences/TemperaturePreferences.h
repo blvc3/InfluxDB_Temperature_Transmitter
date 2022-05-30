@@ -19,17 +19,17 @@ public:
     TemperaturePreferences(const char* folder);
     void writeWiFiConfiguration(String ssid, String passwd);
     void writeInfluxDBConfiguration(String influxUrl, String influxToken, String influxOrganisation, String influxBucket);
-    void preferencesSetConfiguration(bool hasConfiguration);
-    void preferencesSetFail(int failCode);
+    void setConfiguration(bool hasConfiguration);
     void getInfluxParameter(String *url, String *token, String *organisation, String *bucket);
     void getWiFiParameter(String *ssid, String *passwd);
     int getLastErrorCode();
     void setErrorCode(int errorcode);
     bool hasConfiguration();
-    void setConfiguration(bool status);
     void clear();
 private:
     const char* folder;
+    bool hasConfigurationStatus;
+    void updateConfigurationStatus();
 };
 
 #endif

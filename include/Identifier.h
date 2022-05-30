@@ -25,4 +25,7 @@
 // InfuxDB
 #define INFLUX_DB_STANDART_PORT 8086
 
+//Reset Button  
+#define RESET_BUTTON_PIN 13
+
 #endif
