@@ -1,3 +1,11 @@
+/**
+ * @brief Temperature Preference
+ * @details This Programm is used to make Preferences for the Temperature Sensor
+ * @author Christoph Schwarz
+ * @version 1.0
+ * @date 2022-06-02
+ */
+
 #ifndef TemperaturePreferences_h
 #define TemperaturePreferences_h
 
@@ -26,10 +34,10 @@ public:
     void setErrorCode(int errorcode);
     bool hasConfiguration();
     void clear();
+    void updateConfigurationStatus();
 private:
     const char* folder;
     bool hasConfigurationStatus;
-    void updateConfigurationStatus();
 };
 
 #endif

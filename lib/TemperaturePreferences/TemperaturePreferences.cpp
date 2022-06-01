@@ -4,7 +4,7 @@ Preferences preferences;
 
 TemperaturePreferences::TemperaturePreferences(const char* folder){
     this->folder = folder;
-    this->hasConfigurationStatus = preferences.getBool(PERF_KEY_HAS_CONFIGURATION, false);
+    this->hasConfigurationStatus = false;
 }
 
 /**

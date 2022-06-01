@@ -11,67 +11,30 @@
 #include "Identifier.h"
 
 //------ VARIABLES ------
-// Wifi Web Server
-IPAddress ip(192, 168, 178, 110);
-IPAddress gateway(192, 168, 178, 1);
-IPAddress subnet(255, 255, 255, 0);
-WebServer server(WEB_SERVER_PORT);
-const char *ssidLocal = WIFI_LOCAL_SSID;
+
+//Wifi List
+String *wifiScanSSIDs;
 
 // Temperature Sensor
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature tempSensor(&oneWire);
 
-// Wifi Connect
-const char *ssidHomeNetwork;
-const char *passwdHomeNetwork;
-String *wifiScanSSIDs;
-WiFiMulti wifiMulti;
-
 // InfluxDB
-const char *influxdbUrl;
-const char *influxdbToken;
-const char *influxdbOrganisation;
-const char *influxdbBucket;
+String influxdbUrl;
+String influxdbToken;
+String influxdbOrganisation;
+String influxdbBucket;
 
 // Preferences
 TemperaturePreferences settings("pref");
+TemperatureWifiHelper wifi;
+TemperatureAccespoint accespoint(NODE_NAME);
+
 
 // Datapoints
-Point sensor(WIFI_LOCAL_SSID);
+Point sensor(NODE_NAME);
 
 // ------ FUNCTIONS ------
-/**
- * @brief Scan for Wifi Networks
- */
-void scanWiFi()
-{
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    Serial.println("Scan start");
-    int n = WiFi.scanNetworks();
-    Serial.println("Scan done");
-    wifiScanSSIDs = new String[n];
-    if (n == 0)
-    {
-        Serial.println("No networks found");
-    }
-    else
-    {
-        Serial.print("Found " + String(n) + " networks");
-        for (int i = 0; i < n; ++i)
-        {
-            // Print SSID and RSSI for each network found
-            Serial.print(i + 1);
-            Serial.print(": ");
-            Serial.print(WiFi.SSID(i));
-            wifiScanSSIDs[i] = WiFi.SSID(i);
-            delay(10);
-        }
-    }
-    Serial.println("Finished Scan");
-}
-
 /**
  * @brief get the Website String
  *
@@ -82,7 +45,8 @@ String getHTMLString(bool addWifi, bool addInflux)
     String html = "<!DOCTYPE HTML><html><head><title>Temperature Sensor</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><form action=\"/input\">";
     if (addWifi)
     {
-        scanWiFi();
+        wifi.discoverWifi();
+        wifiScanSSIDs = wifi.getWifiNetworksList();
         Serial.println(sizeof(wifiScanSSIDs));
         for (int i = 0; i < sizeof(wifiScanSSIDs); i++)
         {
@@ -109,18 +73,16 @@ String getHTMLString(bool addWifi, bool addInflux)
  * @param temp the integer in witch the temperature should be stored
  * @param cycels how many cycles should be done to measure the temperature
  */
-float getTemperature(int cycels)
+double getTemperature(int cycels)
 {
-    float result = 1;
+    double result = 1;
     for (int i = 0; i < cycels; i++)
     {
         // Measuring
         tempSensor.requestTemperatures();
         result += tempSensor.getTempCByIndex(0);
 
-        Serial.println("Current Temp: " + String(result));
-
-        if ((int)result == -127)
+        if (tempSensor.getTempCByIndex(0) == -127)
         {
             result = 0;
             i = 0;
@@ -129,6 +91,7 @@ float getTemperature(int cycels)
         delay(1000);
     }
     result = result / cycels;
+    Serial.println("Measured Temperature: " + String(result) + "°C" + " In " + String(cycels) + " Cycles");
     return result;
 }
 
@@ -137,7 +100,7 @@ float getTemperature(int cycels)
  *
  * @param temp the Temperature
  */
-void sendTemp(int *temp)
+void sendTemp(double *temp)
 {
     // InfluxDB Client
     InfluxDBClient client(influxdbUrl, influxdbOrganisation, influxdbBucket, influxdbToken, InfluxDbCloud2CACert);
@@ -147,42 +110,21 @@ void sendTemp(int *temp)
     Serial.print("Writing: ");
 
     Serial.println(sensor.toLineProtocol());
-    if (wifiMulti.run() != WL_CONNECTED)
-    {
-        Serial.println("Wifi connection lost");
+    if(!wifi.hasWifi()){
+        wifi.connect();
+        if(!wifi.hasWifi()) Serial.println("No Wifi Connection");
     }
     if (!client.writePoint(sensor))
     {
         Serial.print("InfluxDB write failed: ");
-        Serial.println(client.getLastErrorMessage());
+        String errormessage = client.getLastErrorMessage();
+        Serial.println(errormessage);
     }
-}
-
-bool hasWifi()
-{
-    int checkCounter = 0;
-    bool result = false;
-    while (WiFi.status() != WL_CONNECTED && checkCounter < 10)
-    {
-        delay(500);
-        checkCounter++;
-    }
-
-    if (checkCounter > 9)
-    {
-        result = false;
-    }
-    else
-    {
-        result = true;
-    }
-    return result;
 }
 
 void configureTemperatureSensor(int errorcode)
 {
     Serial.println("No configuration found");
-    Serial.println("Starting configuration mode");
 
     // Scan Wifi
     String webseiteStringHTML;
@@ -203,50 +145,14 @@ void configureTemperatureSensor(int errorcode)
         break;
     }
 
-    Serial.println("Please connect to " + String(WIFI_LOCAL_SSID));
-    WiFi.mode(WIFI_MODE_AP);
-    WiFi.config(ip, gateway, subnet);
-    WiFi.softAP(ssidLocal);
+    accespoint.start(webseiteStringHTML, wifi.getWifiNetworksList(), &settings);
+    accespoint.printConnectionInfo();
 
-    IPAddress IP = WiFi.softAPIP();
-    Serial.print("AP IP address: ");
-    Serial.println(IP);
-
-    // Web Server
-    //  Send web page with input fields to client
-    server.on("/", HTTP_GET, [webseiteStringHTML]()
-              { server.send(200, "text/html", webseiteStringHTML); });
-    server.on("/input", HTTP_GET, []()
-              {
-            String ssidNumber = server.arg("ssid");
-            int ssidInt = ssidNumber.toInt();
-            String ssid = wifiScanSSIDs[ssidInt];
-            String passwd = server.arg("passwd");
-            String influxUrl = server.arg("influxUrl");
-            String influxToken = server.arg("influxToken");
-            String influxOrganisation = server.arg("influxOrganisation");
-            String influxBucket = server.arg("influxBucket");
-
-            if(ssid != "") Serial.println("SSID: " + ssid);
-            if(passwd != "") Serial.println("Password: " + passwd);
-            if(influxUrl != "") Serial.println("InfluxDB URL: " + influxUrl);
-            if(influxToken != "") Serial.println("InfluxDB Token: " + influxToken);
-            if(influxOrganisation != "") Serial.println("InfluxDB Organisation: " + influxOrganisation);
-            if(influxBucket != "") Serial.println("InfluxDB Bucket: " + influxBucket);
-
-            settings.writeWiFiConfiguration(ssid, passwd);
-            settings.writeInfluxDBConfiguration(influxUrl, influxToken, influxOrganisation, influxBucket);
-
-            settings.setConfiguration(true);
-
-            server.send(200, "text/html", "Configuration done");
-            ESP.restart(); });
-    server.begin();
 }
 
 void startTemperatureSensor()
 {
-    Serial.println("Configuration found");
+    Serial.println("Configuration found:");
 
     // Get Configuration from Preferences
     String prefSSID;
@@ -277,29 +183,29 @@ void startTemperatureSensor()
     }
     else
     {
-        ssidHomeNetwork = prefSSID.c_str();
-        passwdHomeNetwork = prefPasswd.c_str();
+        wifi.setSSID(prefSSID.c_str());
+        wifi.setPassword(prefPasswd.c_str());
     }
 
-    if (perfInfluxUrl == "No URL" || perfInfluxPort == "No Port" || perfInfluxToken == "No Token" || perfInfluxOrganisation == "No Organisation" || perfInfluxBucket == "No Bucket")
+    if (perfInfluxUrl == "No URL" || perfInfluxToken == "No Token" || perfInfluxOrganisation == "No Organisation" || perfInfluxBucket == "No Bucket")
     {
-        Serial.println("No InfluxDB found");
+        Serial.println("Not all Parameter given");
         settings.setErrorCode(INFLUX_PARAMETER_ERROR);
         settings.setConfiguration(false);
         ESP.restart();
     }
     else
     {
-        influxdbUrl = perfInfluxUrl.c_str();
-        influxdbToken = perfInfluxToken.c_str();
-        influxdbOrganisation = perfInfluxOrganisation.c_str();
-        influxdbBucket = perfInfluxBucket.c_str();
+        influxdbUrl = perfInfluxUrl;
+        influxdbToken = perfInfluxToken;
+        influxdbOrganisation = perfInfluxOrganisation;
+        influxdbBucket = perfInfluxBucket;
     }
 
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssidHomeNetwork, passwdHomeNetwork);
-    Serial.println("\nConnecting");
-    if (!hasWifi())
+    
+    wifi.connect();
+
+    if (!wifi.hasWifi())
     {
         Serial.println("Wifi connection lost");
         settings.setErrorCode(FAIL_MESSAGE_WIFI_CONNECT);
@@ -352,7 +258,7 @@ void setup()
     // Serial
     Serial.begin(115200);
     delay(1);
-    Serial.println("Starting");
+    Serial.println("Starting...");
 
     // Pins
     pinMode(LED_BUILTIN, OUTPUT);
@@ -363,6 +269,7 @@ void setup()
     {
         Serial.println("Reset button pressed");
         settings.setConfiguration(false);
+        delay(5000);
         ESP.restart();
     }
 
@@ -370,10 +277,10 @@ void setup()
     int failLastTimeErrorCode = settings.getLastErrorCode();
     settings.setErrorCode(-1);
 
+    settings.updateConfigurationStatus();
+
     if (settings.hasConfiguration()) startTemperatureSensor();
     else configureTemperatureSensor(failLastTimeErrorCode);
-    
-    Serial.println("Setup done");
 }
 
 /**
@@ -383,7 +290,7 @@ void loop()
 {
     if (settings.hasConfiguration())
     {
-        int temp = getTemperature(10);
+        double temp = getTemperature(10);
         sendTemp(&temp);
-    } else server.handleClient();
+    } else accespoint.handle();
 }

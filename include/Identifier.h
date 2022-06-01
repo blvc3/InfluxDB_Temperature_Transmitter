@@ -6,10 +6,7 @@
 
 // Restart Counter
 #define RESTART_COUNTER_MAX 10
-
-// Wifi Web Server
-#define WIFI_LOCAL_SSID "Temperature_Transmitter"
-#define WEB_SERVER_PORT 80
+#define NODE_NAME "TemperatureWifi"
 
 // Device
 #define DEVICE "ESP32"
