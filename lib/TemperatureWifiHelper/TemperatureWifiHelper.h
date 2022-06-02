@@ -16,7 +16,6 @@
 class TemperatureWifiHelper
 {
     public:
-        TemperatureWifiHelper();
         ~TemperatureWifiHelper();
         void setSSID(String ssid);
         void setPassword(String password);

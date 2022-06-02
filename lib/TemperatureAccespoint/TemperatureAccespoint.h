@@ -16,12 +16,6 @@
 
 #define WEB_SERVER_PORT 80
 
-//IPAddress ip(192, 168, 178, 110);
-//IPAddress gateway(192, 168, 178, 1);
-//IPAddress subnet(255, 255, 255, 0);
-
-WebServer server(WEB_SERVER_PORT);
-
 class TemperatureAccespoint
 {
 public:

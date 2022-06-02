@@ -1,5 +1,7 @@
 #include "TemperatureAccespoint.h"
 
+WebServer server(WEB_SERVER_PORT);
+
 /**
  * @brief Construct a new Temperature Accespoint
  * 
