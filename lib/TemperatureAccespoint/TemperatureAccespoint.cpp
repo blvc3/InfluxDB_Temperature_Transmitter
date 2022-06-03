@@ -2,9 +2,13 @@
 
 WebServer server(WEB_SERVER_PORT);
 
+IPAddress ip(192, 168, 178, 110);
+IPAddress gateway(192, 168, 178, 1);
+IPAddress subnet(255, 255, 255, 0);
+
 /**
  * @brief Construct a new Temperature Accespoint
- * 
+ *
  * @param ssid the name of the WiFi (wifi)
  */
 TemperatureAccespoint::TemperatureAccespoint(String ssid)
@@ -21,10 +25,9 @@ void TemperatureAccespoint::printConnectionInfo()
     printoutWifiAP("Go To https://" + WiFi.localIP().toString() + "/ to configure the device\n");
 }
 
-
 /**
  * @brief Create a new WLAN with a web server
- * 
+ *
  * @param webseiteStringHTML the HTML code of the web page
  * @param wifiScanSSIDs the list of available WLANs
  * @param settings the settings from TemperaturePreferences
@@ -40,6 +43,7 @@ void TemperatureAccespoint::start(String webseiteStringHTML, String *wifiScanSSI
               { server.send(200, "text/html", webseiteStringHTML); });
     server.on("/input", HTTP_GET, [wifiScanSSIDs, settings]()
               {
+            String name = server.arg("name");
             String ssidNumber = server.arg("ssid");
             int ssidInt = ssidNumber.toInt();
             String ssid = wifiScanSSIDs[ssidInt];
@@ -49,6 +53,7 @@ void TemperatureAccespoint::start(String webseiteStringHTML, String *wifiScanSSI
             String influxOrganisation = server.arg("influxOrganisation");
             String influxBucket = server.arg("influxBucket");
 
+            if(name != "") Serial.println("Name: " + name);
             if(ssid != "") Serial.println("SSID: " + ssid);
             if(passwd != "") Serial.println("Password: " + passwd);
             if(influxUrl != "") Serial.println("InfluxDB URL: " + influxUrl);
@@ -56,6 +61,7 @@ void TemperatureAccespoint::start(String webseiteStringHTML, String *wifiScanSSI
             if(influxOrganisation != "") Serial.println("InfluxDB Organisation: " + influxOrganisation);
             if(influxBucket != "") Serial.println("InfluxDB Bucket: " + influxBucket);
 
+            settings->writeNodeName(name);
             settings->writeWiFiConfiguration(ssid, passwd);
             settings->writeInfluxDBConfiguration(influxUrl, influxToken, influxOrganisation, influxBucket);
             settings->setConfiguration(true);
@@ -70,6 +76,7 @@ void TemperatureAccespoint::start(String webseiteStringHTML, String *wifiScanSSI
 /**
  * @brief Check if the WLAN is connected
  */
-void TemperatureAccespoint::handle(){
+void TemperatureAccespoint::handle()
+{
     server.handleClient();
 }

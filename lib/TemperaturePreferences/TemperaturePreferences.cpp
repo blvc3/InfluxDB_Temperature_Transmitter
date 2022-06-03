@@ -134,3 +134,25 @@ void TemperaturePreferences::updateConfigurationStatus(){
     hasConfigurationStatus = preferences.getBool(PERF_KEY_HAS_CONFIGURATION, false);
     preferences.end();
 }
+
+/**
+ * @brief Write the Node Name
+ * 
+ * @param nodeName the name
+ */
+void TemperaturePreferences::writeNodeName(String nodeName){
+    preferences.begin(folder, false);
+    preferences.putString(PERF_KEY_NODE_NAME, nodeName);
+    preferences.end();
+}
+
+/**
+ * @brief get the Node Name
+ * 
+ * @return String the Name
+ */
+void TemperaturePreferences::getNodeName(String *name){
+    preferences.begin(folder, false);
+    *name = preferences.getString(PERF_KEY_NODE_NAME, "No Node Name");
+    preferences.end();
+}

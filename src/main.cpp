@@ -39,7 +39,7 @@ TemperaturePreferences settings("pref");
 TemperatureWifiHelper wifi;
 TemperatureAccespoint accespoint(NODE_NAME);
 
-// Datapoints
+//Sensor
 Point sensor(NODE_NAME);
 
 // ------ FUNCTIONS ------
@@ -48,7 +48,7 @@ Point sensor(NODE_NAME);
  *
  * @return String the HTML Website
  */
-String getHTMLString(bool addWifi, bool addInflux)
+String getHTMLString(bool addWifi, bool addInflux, bool addName)
 {
     String html = "<!DOCTYPE HTML><html><head><title>Temperature Sensor</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><form action=\"/input\">";
     if (addWifi)
@@ -58,11 +58,15 @@ String getHTMLString(bool addWifi, bool addInflux)
         Serial.println(sizeof(wifiScanSSIDs));
         for (int i = 0; i < sizeof(wifiScanSSIDs); i++)
         {
-            html += String(i) + ") " + wifiScanSSIDs[i] + "<br>";
+            html += "<h5>";
+            html += String(i) + ") " + wifiScanSSIDs[i] + "</h5>";
         }
         html += "SSID <input type=\"number\" name=\"ssid\" min = 0 max = ";
         html += String(sizeof(wifiScanSSIDs));
         html += "><br>Password <input type=\"text\" name=\"passwd\"><br>";
+    }
+    if (addName){
+        html += "Name <input type=\"text\" name=\"name\"><br>";
     }
     if (addInflux)
     {
@@ -81,24 +85,26 @@ String getHTMLString(bool addWifi, bool addInflux)
  * @param temp the integer in witch the temperature should be stored
  * @param cycels how many cycles should be done to measure the temperature
  */
-double getTemperature(int cycels)
+float getTemperature(int cycels)
 {
-    double result = 1;
+    float result = 1;
     for (int i = 0; i < cycels; i++)
     {
         // Measuring
         tempSensor.requestTemperatures();
         result += tempSensor.getTempCByIndex(0);
 
-        if (isnan(tempSensor.getTempCByIndex(0)))
+        if (false && isnan(tempSensor.getTempCByIndex(0)))
         {
             result = 0;
             i = 0;
             Serial.println("No Sensor Connected");
         }
-        delay(60000); //One Minute
+        //delay(60000); //One Minute
+        delay(10000); //Ten Seconds
     }
     result = result / cycels;
+    result = 24.45;
     Serial.println("Measured Temperature: " + String(result) + "°C" + " In " + String(cycels) + " Cycles");
     return result;
 }
@@ -108,7 +114,7 @@ double getTemperature(int cycels)
  *
  * @param temp the Temperature
  */
-void sendTemp(double *temp)
+void sendTemp(float temp)
 {
     // InfluxDB Client
     InfluxDBClient client(influxdbUrl, influxdbOrganisation, influxdbBucket, influxdbToken, InfluxDbCloud2CACert);
@@ -143,15 +149,19 @@ void configureTemperatureSensor(int errorcode)
     {
     case FAIL_MESSAGE_WIFI_CONNECT:
         Serial.println("Failed last Time: WIFI");
-        webseiteStringHTML = getHTMLString(true, false);
+        webseiteStringHTML = getHTMLString(true, false, false);
         break;
     case INFLUX_PARAMETER_ERROR:
         Serial.println("Failed last Time: INFLUX");
-        webseiteStringHTML = getHTMLString(false, true);
+        webseiteStringHTML = getHTMLString(false, true, false);
+        break;
+    case FAIL_MESSAGE_NO_NAME_SET:
+        Serial.println("Failed last Time: NO NAME");
+        webseiteStringHTML = getHTMLString(false, false, true);
         break;
     default:
         Serial.println("Failed last Time: No Error given");
-        webseiteStringHTML = getHTMLString(true, true);
+        webseiteStringHTML = getHTMLString(true, true, true);
         break;
     }
 
@@ -165,25 +175,33 @@ void startTemperatureSensor()
     Serial.println("Configuration found:");
 
     // Get Configuration from Preferences
+    String name;
     String prefSSID;
     String prefPasswd;
     String perfInfluxUrl;
-    String perfInfluxPort;
     String perfInfluxToken;
     String perfInfluxOrganisation;
     String perfInfluxBucket;
 
+    settings.getNodeName(&name);
     settings.getWiFiParameter(&prefSSID, &prefPasswd);
     settings.getInfluxParameter(&perfInfluxUrl, &perfInfluxToken, &perfInfluxOrganisation, &perfInfluxBucket);
 
+    printoutConfiguration("Name: " + name);
     printoutConfiguration("SSID: " + prefSSID + "\n");
     printoutConfiguration("Password: ");
     sizeof(prefPasswd) > 0 ? Serial.println("***********") : Serial.println("No Password");
     printoutConfiguration("InfluxDB URL: " + perfInfluxUrl + "\n");
-    printoutConfiguration("InfluxDB Port: " + perfInfluxPort + "\n");
     printoutConfiguration("InfluxDB Token: " + perfInfluxToken + "\n");
     printoutConfiguration("InfluxDB Organisation: " + perfInfluxOrganisation + "\n");
     printoutConfiguration("InfluxDB Bucket: " + perfInfluxBucket + "\n");
+
+    if(name == "No Node Name"){
+        Serial.println("No Node Name found");
+        settings.setErrorCode(FAIL_MESSAGE_NO_NAME_SET);
+        settings.setConfiguration(false);
+        ESP.restart();
+    } else sensor.addTag("device", name);
 
     if (prefSSID == "No SSID" || prefPasswd == "No Password")
     {
@@ -212,7 +230,6 @@ void startTemperatureSensor()
         influxdbOrganisation = perfInfluxOrganisation;
         influxdbBucket = perfInfluxBucket;
     }
-
     
     wifi.connect();
 
@@ -230,9 +247,6 @@ void startTemperatureSensor()
 
     // InfluxDB Client
     InfluxDBClient client(influxdbUrl, influxdbOrganisation, influxdbBucket, influxdbToken, InfluxDbCloud2CACert);
-
-    // InfluxDB Configuration Sernsor
-    sensor.addTag("device", DEVICE);
 
     timeSync(TZ_INFO, "pool.ntp.org", "time.nis.gov");
 
@@ -299,7 +313,7 @@ void loop()
 {
     if (settings.hasConfiguration())
     {
-        double temp = getTemperature(10);
-        sendTemp(&temp);
+        float temp = getTemperature(10);
+        sendTemp(temp);
     } else accespoint.handle();
 }
