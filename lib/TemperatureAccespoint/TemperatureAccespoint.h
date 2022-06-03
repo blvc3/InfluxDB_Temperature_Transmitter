@@ -16,6 +16,8 @@
 
 #define WEB_SERVER_PORT 80
 
+#define printoutWifiAP(x) Serial.print("[WIFIAP] " + String(x));
+
 class TemperatureAccespoint
 {
 public:

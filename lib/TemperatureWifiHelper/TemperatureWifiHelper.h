@@ -11,7 +11,7 @@
 
 #include <Wifi.h>
 
-#define printoutWifi(x) Serial.print("[WIFI]" + String(x));
+#define printoutWifi(x) Serial.print("[WIFI] " + String(x));
 
 class TemperatureWifiHelper
 {

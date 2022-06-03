@@ -2,7 +2,7 @@
  * @brief InfluxDB Transmitter
  * @details This Programm is used to transmit temperatur data to an InfluxDB
  * @author Christoph Schwarz
- * @version 0.1
+ * @version 1.0
  * @date 2022-05-27
  */
 
@@ -19,6 +19,15 @@ String *wifiScanSSIDs;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature tempSensor(&oneWire);
 
+//Test
+#define INFLUXDB_URL "http://192.168.1.40:8086"
+// InfluxDB v2 server or cloud API token (Use: InfluxDB UI -> Data -> API Tokens -> <select token>)
+#define INFLUXDB_TOKEN "dBArQKk5wgNe0RDstDYQi0eFBPmrDMnXlbdrG_6rnMGWLdt6-5GUTFiHWLPakCvlIPlKo5Y04XqCun9UB45wnQ=="
+// InfluxDB v2 organization id (Use: InfluxDB UI -> User -> About -> Common Ids )
+#define INFLUXDB_ORG "blvc3"
+// InfluxDB v2 bucket name (Use: InfluxDB UI ->  Data -> Buckets)
+#define INFLUXDB_BUCKET "Test"
+
 // InfluxDB
 String influxdbUrl;
 String influxdbToken;
@@ -29,7 +38,6 @@ String influxdbBucket;
 TemperaturePreferences settings("pref");
 TemperatureWifiHelper wifi;
 TemperatureAccespoint accespoint(NODE_NAME);
-
 
 // Datapoints
 Point sensor(NODE_NAME);
@@ -82,13 +90,13 @@ double getTemperature(int cycels)
         tempSensor.requestTemperatures();
         result += tempSensor.getTempCByIndex(0);
 
-        if (tempSensor.getTempCByIndex(0) == -127)
+        if (isnan(tempSensor.getTempCByIndex(0)))
         {
             result = 0;
             i = 0;
             Serial.println("No Sensor Connected");
         }
-        delay(1000);
+        delay(60000); //One Minute
     }
     result = result / cycels;
     Serial.println("Measured Temperature: " + String(result) + "°C" + " In " + String(cycels) + " Cycles");
@@ -104,9 +112,11 @@ void sendTemp(double *temp)
 {
     // InfluxDB Client
     InfluxDBClient client(influxdbUrl, influxdbOrganisation, influxdbBucket, influxdbToken, InfluxDbCloud2CACert);
+
     sensor.clearFields();
-    sensor.addField("rssi", WiFi.RSSI());
+    //sensor.addField("rssi", WiFi.RSSI());
     sensor.addField("temperature", temp);
+    sensor.addField("rssid", WiFi.RSSI());
     Serial.print("Writing: ");
 
     Serial.println(sensor.toLineProtocol());
@@ -166,17 +176,18 @@ void startTemperatureSensor()
     settings.getWiFiParameter(&prefSSID, &prefPasswd);
     settings.getInfluxParameter(&perfInfluxUrl, &perfInfluxToken, &perfInfluxOrganisation, &perfInfluxBucket);
 
-    Serial.println("SSID: " + prefSSID);
-    Serial.println("Password: " + prefPasswd);
-    Serial.println("InfluxDB URL: " + perfInfluxUrl);
-    Serial.println("InfluxDB Port: " + perfInfluxPort);
-    Serial.println("InfluxDB Token: " + perfInfluxToken);
-    Serial.println("InfluxDB Organisation: " + perfInfluxOrganisation);
-    Serial.println("InfluxDB Bucket: " + perfInfluxBucket);
+    printoutConfiguration("SSID: " + prefSSID + "\n");
+    printoutConfiguration("Password: ");
+    sizeof(prefPasswd) > 0 ? Serial.println("***********") : Serial.println("No Password");
+    printoutConfiguration("InfluxDB URL: " + perfInfluxUrl + "\n");
+    printoutConfiguration("InfluxDB Port: " + perfInfluxPort + "\n");
+    printoutConfiguration("InfluxDB Token: " + perfInfluxToken + "\n");
+    printoutConfiguration("InfluxDB Organisation: " + perfInfluxOrganisation + "\n");
+    printoutConfiguration("InfluxDB Bucket: " + perfInfluxBucket + "\n");
 
     if (prefSSID == "No SSID" || prefPasswd == "No Password")
     {
-        Serial.println("No SSID found");
+        printoutConfiguration("No SSID found\n");
         settings.setErrorCode(FAIL_MESSAGE_WIFI_CONNECT);
         settings.setConfiguration(false);
         ESP.restart();
@@ -189,7 +200,7 @@ void startTemperatureSensor()
 
     if (perfInfluxUrl == "No URL" || perfInfluxToken == "No Token" || perfInfluxOrganisation == "No Organisation" || perfInfluxBucket == "No Bucket")
     {
-        Serial.println("Not all Parameter given");
+        printoutConfiguration("Not all Parameter given\n");
         settings.setErrorCode(INFLUX_PARAMETER_ERROR);
         settings.setConfiguration(false);
         ESP.restart();
@@ -207,25 +218,23 @@ void startTemperatureSensor()
 
     if (!wifi.hasWifi())
     {
-        Serial.println("Wifi connection lost");
+        Serial.println("[WIFI] Wifi connection lost");
         settings.setErrorCode(FAIL_MESSAGE_WIFI_CONNECT);
         settings.setConfiguration(false);
         ESP.restart();
     }
     else
     {
-        Serial.println("Wifi connected");
+        Serial.println("[WIFI] Wifi connected");
     }
-
-    // InfluxDB Configuration Sernsor
-    sensor.addTag("device", DEVICE);
-    sensor.addTag("SSID", WiFi.SSID());
-    sensor.addTag("temperature", "0");
-
-    timeSync(TZ_INFO, "pool.ntp.org", "time.nis.gov");
 
     // InfluxDB Client
     InfluxDBClient client(influxdbUrl, influxdbOrganisation, influxdbBucket, influxdbToken, InfluxDbCloud2CACert);
+
+    // InfluxDB Configuration Sernsor
+    sensor.addTag("device", DEVICE);
+
+    timeSync(TZ_INFO, "pool.ntp.org", "time.nis.gov");
 
     if (client.validateConnection())
     {

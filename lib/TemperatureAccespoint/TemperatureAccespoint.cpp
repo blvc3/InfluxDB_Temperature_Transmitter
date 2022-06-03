@@ -17,8 +17,8 @@ TemperatureAccespoint::TemperatureAccespoint(String ssid)
  */
 void TemperatureAccespoint::printConnectionInfo()
 {
-    Serial.println("Connected to " + WiFi.SSID());
-    Serial.println("Go To https://" + WiFi.localIP().toString() + "/ to configure the device");
+    printoutWifiAP("Connected to " + WiFi.SSID() + "\n");
+    printoutWifiAP("Go To https://" + WiFi.localIP().toString() + "/ to configure the device\n");
 }
 
 
@@ -32,16 +32,8 @@ void TemperatureAccespoint::printConnectionInfo()
 void TemperatureAccespoint::start(String webseiteStringHTML, String *wifiScanSSIDs, TemperaturePreferences *settings)
 {
     WiFi.disconnect();
-    Serial.println("Connecting to WiFi");
-    WiFi.begin(ssid.c_str());
-    while (WiFi.status() != WL_CONNECTED)
-    {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(ssid.c_str());
     Serial.println(WiFi.localIP());
 
     server.on("/", HTTP_GET, [webseiteStringHTML]()
@@ -69,7 +61,7 @@ void TemperatureAccespoint::start(String webseiteStringHTML, String *wifiScanSSI
             settings->setConfiguration(true);
 
             server.send(200, "text/html", "Configuration done");
-            Serial.println("Setup done Restarting now");
+            printoutWifiAP("Setup done Restarting now\n");
             delay(1000);
             ESP.restart(); });
     server.begin();

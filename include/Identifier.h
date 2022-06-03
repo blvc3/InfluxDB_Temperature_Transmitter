@@ -25,4 +25,7 @@
 //Reset Button  
 #define RESET_BUTTON_PIN 13
 
+//Configuration Printout
+#define printoutConfiguration(x) Serial.print("[CONF] " + String(x))
+
 #endif
